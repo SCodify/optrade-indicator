@@ -1,5 +1,5 @@
 //@version=5
-indicator("Análisis OPTRADE con Promedio", overlay=true, max_labels_count=500)
+indicator("OPTRADE analysis", overlay=true, max_labels_count=500)
 
 // ———— Configuración ———— //
 string assetType = input.string("Crypto", "Tipo de Activo", options=["Crypto", "Otros"])
