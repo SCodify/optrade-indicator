@@ -1,33 +1,41 @@
 //@version=5
-indicator("Análisis OPTRADE", overlay=true, max_labels_count=500)
+indicator("Análisis OPTRADE con Promedio", overlay=true, max_labels_count=500)
 
 // ———— Configuración ———— //
 string assetType = input.string("Crypto", "Tipo de Activo", options=["Crypto", "Otros"])
 float tpAtrMultiplier = input.float(1.0, "Multiplicador TP ATR", minval = 0.1, step = 0.1, tooltip = "Multiplicador para el cálculo del Take Profit basado en ATR")
 float slAtrMultiplier = input.float(1.0, "Multiplicador SL ATR", minval = 0.1, step = 0.1, tooltip = "Multiplicador para el cálculo del Stop Loss basado en ATR")
 bool invertTpSl = input.bool(false, "Invertir TP y SL", tooltip = "Activa esta opción si deseas invertir los niveles de TP y SL.")
+int avgCandles = input.int(1, "Cantidad de Velas para Promedio", minval=1, tooltip="Especifica cuántas velas se deben promediar para los indicadores.")
+
 // Selector para elegir entre Dinámico y Manual
 bool useDynamicPrice = input.bool(true, "Usar Precio Dinámico (Cerrar)", tooltip = "Selecciona 'true' para usar el precio de cierre actual como base. Selecciona 'false' para ingresar un precio manual.")
 float manualPrice = input.float(301.30, "Precio Manual", tooltip = "Ingresa un precio manual si 'Usar Precio Dinámico' está desactivado.")
-
 // Determinar el precio base
 float basePrice = useDynamicPrice ? close : manualPrice
+
+// Función para calcular el promedio de los últimos N valores
+avgValue(values) =>
+    ta.sma(values, avgCandles)
 
 // ———— Cálculos ———— //
 // 1. SMA50
 sma50 = ta.sma(close, 50)
-cond_sma = close > sma50 ? "Sí" : "No"
+cond_sma = avgValue(close) > sma50 ? "Sí" : "No"
 sma_emoji = cond_sma == "Sí" ? "🟢" : "🔴"
 
 // 2. RSI
 rsiThreshold = assetType == "Crypto" ? 75 : 70
 rsi = ta.rsi(close, 14)
-cond_rsi = rsi >= rsiThreshold ? "Sobrecompra" : rsi <= 30 ? "Sobreventa" : "Neutral"
+avg_rsi = avgValue(rsi)
+cond_rsi = avg_rsi >= rsiThreshold ? "Sobrecompra" : avg_rsi <= 30 ? "Sobreventa" : "Neutral"
 rsi_emoji = cond_rsi == "Sobrecompra" ? "🔴" : cond_rsi == "Sobreventa" ? "🟢" : "🟡"
 
 // 3. MACD
 [macdLine, signalLine, _] = ta.macd(close, 12, 26, 9)
-cond_macd = macdLine > signalLine ? "Sí" : "No"
+avg_macdLine = avgValue(macdLine)
+avg_signalLine = avgValue(signalLine)
+cond_macd = avg_macdLine > avg_signalLine ? "Sí" : "No"
 macd_emoji = cond_macd == "Sí" ? "🟢" : "🔴"
 
 // 4. Bollinger Bands
@@ -37,8 +45,8 @@ basis = ta.sma(close, lengthBB)
 dev = multBB * ta.stdev(close, lengthBB)
 upperBB = basis + dev
 lowerBB = basis - dev
-distanciaABandaSuperior = upperBB - close
-distanciaABandaInferior = close - lowerBB
+distanciaABandaSuperior = upperBB - avgValue(close)
+distanciaABandaInferior = avgValue(close) - lowerBB
 bandRange = upperBB - lowerBB
 threshold = bandRange * 0.33
 cond_bb = distanciaABandaSuperior <= threshold ? "Banda Superior" : 
@@ -49,12 +57,14 @@ bb_emoji = cond_bb == "Banda Superior" ? "🔴" : cond_bb == "Banda Inferior" ? 
 // 5. Estocástico
 lengthStoch = 14
 k = ta.sma(ta.stoch(close, high, low, lengthStoch), 3)
-cond_stoch = k >= 80 ? "Sobrecompra" : k <= 20 ? "Sobreventa" : "Neutral"
+avg_k = avgValue(k)
+cond_stoch = avg_k >= 80 ? "Sobrecompra" : avg_k <= 20 ? "Sobreventa" : "Neutral"
 stoch_emoji = cond_stoch == "Sobrecompra" ? "🔴" : cond_stoch == "Sobreventa" ? "🟢" : "🟡"
 
 // 6. Volumen
 volMedia = ta.sma(volume, 10)
-cond_vol = volume > volMedia * 1.2 ? "Aumentando" : volume < volMedia * 0.8 ? "Disminuyendo" : "Neutral"
+avg_volume = avgValue(volume)
+cond_vol = avg_volume > volMedia * 1.2 ? "Aumentando" : avg_volume < volMedia * 0.8 ? "Disminuyendo" : "Neutral"
 vol_emoji = cond_vol == "Aumentando" ? "🟢" : cond_vol == "Disminuyendo" ? "🔴" : "🟡"
 
 // 7. Ichimoku Cloud
@@ -63,21 +73,18 @@ kijun = (ta.highest(high, 26) + ta.lowest(low, 26)) / 2
 senkouA = (tenkan + kijun) / 2
 senkouB = (ta.highest(high, 52) + ta.lowest(low, 52)) / 2
 chikou = close
+aboveCloud = avgValue(close) > senkouA and avgValue(close) > senkouB
+belowCloud = avgValue(close) < senkouA and avgValue(close) < senkouB
+insideCloud = not aboveCloud and not belowCloud
+cond_ichimoku = aboveCloud ? "Por encima" : belowCloud ? "Por debajo" : "Dentro"
+ichimoku_emoji = cond_ichimoku == "Por encima" ? "🟢" : cond_ichimoku == "Por debajo" ? "🔴" : "🟡"
 
 // 8. ATR 
 atrLength = 14
 atr = ta.atr(atrLength)
-
 // Calcular TP y SL con opción de inversión
 float atrStopLossLong = invertTpSl ? basePrice + atr * slAtrMultiplier : basePrice - atr * slAtrMultiplier  // SL para compra
 float atrStopLossShort = invertTpSl ? basePrice - atr * tpAtrMultiplier : basePrice + atr * tpAtrMultiplier // SL para venta
-
-// Determinar posición respecto a la nube
-aboveCloud = close > senkouA and close > senkouB
-belowCloud = close < senkouA and close < senkouB
-insideCloud = not aboveCloud and not belowCloud
-cond_ichimoku = aboveCloud ? "Por encima" : belowCloud ? "Por debajo" : "Dentro"
-ichimoku_emoji = cond_ichimoku == "Por encima" ? "🟢" : cond_ichimoku == "Por debajo" ? "🔴" : "🟡"
 
 // ———— Interfaz ———— //
 var table t = table.new(position.bottom_right, 3, 10, frame_color=color.black, frame_width=1, border_width=1)
