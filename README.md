@@ -81,7 +81,3 @@ cond_rsi = avg_rsi >= rsiThreshold ? "Sobrecompra" : avg_rsi <= 30 ? "Sobreventa
 ```
 
 Aquí, el RSI se promedia utilizando la función `avgValue`, y luego se evalúa si está en sobrecompra, sobreventa o en niveles neutrales.
-
->### Conclusión
->
->El script **"Análisis OPTRADE con Promedio"** es una herramienta poderosa para traders que desean simplificar el análisis técnico y tomar decisiones informadas. Al combinar múltiples indicadores en una interfaz visual clara y permitir la personalización de parámetros clave, este script se convierte en un recurso valioso para cualquier estrategia de trading.
